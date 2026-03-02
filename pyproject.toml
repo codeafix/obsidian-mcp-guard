@@ -7,10 +7,27 @@ name = "obsidian-mcp-guard"
 version = "0.1.0"
 description = "MCP server for agent-safe Obsidian vault access with lint validation"
 requires-python = ">=3.10"
+license = "MIT"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Text Processing :: Markup :: Markdown",
+]
 dependencies = [
     "fastmcp>=2.0",
     "mdlint-obsidian @ git+https://github.com/codeafix/mdlint-obsidian.git@v0.2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/codeafix/obsidian-mcp-guard"
+Repository = "https://github.com/codeafix/obsidian-mcp-guard"
+Issues = "https://github.com/codeafix/obsidian-mcp-guard/issues"
 
 [project.scripts]
 obsidian-mcp-guard = "obsidian_mcp_guard.__main__:main"

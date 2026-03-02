@@ -2,6 +2,10 @@
 
 An MCP server for agent-safe Obsidian vault access. Provides read/write file tools with lint validation to prevent agents from writing malformed Obsidian markdown.
 
+## Why this exists
+
+Most Obsidian MCP servers give agents direct write access with no markdown validation. Those that route through the Obsidian REST API gain some input sanitisation, but none validate content against Obsidian's markdown rendering rules before writing. obsidian-mcp-guard fills this gap: all writes are validated against Obsidian's markdown rules before they touch the vault, and if the content would render incorrectly, the write is rejected with a structured error explaining exactly which rule was violated. Writes can also be constrained to a single configurable vault path, giving agents a designated space to create and manage content on behalf of the user while preventing accidental or runaway writes to other vaults on the same filesystem. Directory traversal attacks are blocked at the path resolution layer, so a misconfigured, misbehaving, or prompt-injected agent cannot escape the write vault by constructing paths like `Claude/../OtherVault/note.md`
+
 ## Features
 
 - **Read/list/create/update/delete** notes via `HOST_VAULT_PATH` on the host filesystem
@@ -13,10 +17,16 @@ An MCP server for agent-safe Obsidian vault access. Provides read/write file too
 ## Installation
 
 ```bash
-pip install git+https://github.com/your-org/obsidian-mcp-guard.git
+pip install obsidian-mcp-guard
 ```
 
-Or install into a local venv for development:
+For Claude Desktop users who don't want a manual install, `uvx` runs it directly with no setup:
+
+```bash
+uvx obsidian-mcp-guard
+```
+
+For local development:
 
 ```bash
 python -m venv .venv
@@ -34,7 +44,7 @@ pip install -e .
 Example layout expected under `HOST_VAULT_PATH`:
 
 ```
-/data/vaults/
+/path/to/your/vaults/
     Claude/      ← write operations land here
     Work/        ← readable but not writable
     Personal/    ← readable but not writable
@@ -46,20 +56,10 @@ Example layout expected under `HOST_VAULT_PATH`:
 
 ```bash
 # via the installed CLI entry point
-HOST_VAULT_PATH=/data/vaults obsidian-mcp-guard
+HOST_VAULT_PATH=/path/to/your/vaults obsidian-mcp-guard
 
 # or via python -m
-HOST_VAULT_PATH=/data/vaults python -m obsidian_mcp_guard
-```
-
-### Mounted into another FastMCP server
-
-```python
-from fastmcp import FastMCP
-from obsidian_mcp_guard import create_vault_server
-
-app = FastMCP("my-agent")
-app.import_server(create_vault_server(vault_path="/data/vaults", write_vault="Claude"))
+HOST_VAULT_PATH=/path/to/your/vaults python -m obsidian_mcp_guard
 ```
 
 ### Claude Desktop / Cursor config
@@ -68,14 +68,49 @@ app.import_server(create_vault_server(vault_path="/data/vaults", write_vault="Cl
 {
   "mcpServers": {
     "obsidian": {
-      "command": "obsidian-mcp-guard",
+      "command": "uvx",
+      "args": ["obsidian-mcp-guard"],
       "env": {
-        "HOST_VAULT_PATH": "/data/vaults",
+        "HOST_VAULT_PATH": "/path/to/your/vaults",
         "WRITE_VAULT": "Claude"
       }
     }
   }
 }
+```
+
+### Claude Code
+
+```bash
+claude mcp add obsidian -- uvx obsidian-mcp-guard
+```
+
+Pass environment variables with `-e`:
+
+```bash
+claude mcp add obsidian -e HOST_VAULT_PATH=/path/to/your/vaults -e WRITE_VAULT=Claude -- uvx obsidian-mcp-guard
+```
+
+### Mounted into another FastMCP server
+
+```python
+from contextlib import asynccontextmanager
+from fastmcp import FastMCP
+from obsidian_mcp_guard import create_vault_server
+
+@asynccontextmanager
+async def lifespan(app):
+    await app.import_server(create_vault_server(
+        vault_path="/path/to/your/vaults",
+        write_vault="Claude"
+    ))
+    yield
+
+mcp = FastMCP("my-agent", lifespan=lifespan)
+
+@mcp.tool()
+def search_notes(...):
+    ...
 ```
 
 ## Tools
@@ -96,3 +131,10 @@ pip install -e .
 pip install pytest pytest-cov
 pytest tests/ --cov=obsidian_mcp_guard
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
+
+## Related projects
+
+- [mdlint-obsidian](https://github.com/codeafix/mdlint-obsidian) — the lint engine used to validate markdown against Obsidian's rendering rules
+
