@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "obsidian-mcp-guard"
+version = "0.1.0"
+description = "MCP server for agent-safe Obsidian vault access with lint validation"
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=2.0",
+    "mdlint-obsidian @ git+https://github.com/codeafix/mdlint-obsidian.git@v0.2.0",
+]
+
+[project.scripts]
+obsidian-mcp-guard = "obsidian_mcp_guard.__main__:main"
+
+[tool.hatch.metadata]
+allow-direct-references = true
