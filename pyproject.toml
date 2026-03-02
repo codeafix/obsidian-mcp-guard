@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
     "fastmcp>=2.0",
-    "mdlint-obsidian @ git+https://github.com/codeafix/mdlint-obsidian.git@v0.2.0",
+    "mdlint-obsidian>=v0.2.0",
 ]
 
 [project.urls]
