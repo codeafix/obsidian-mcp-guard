@@ -9,6 +9,8 @@ description = "MCP server for agent-safe Obsidian vault access with lint validat
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["obsidian", "mcp", "model-context-protocol", "guard", "write-protection", "markdown", "knowledge-management", "ai", "llm", "claude"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
