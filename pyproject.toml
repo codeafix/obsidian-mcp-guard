@@ -35,5 +35,3 @@ Issues = "https://github.com/codeafix/obsidian-mcp-guard/issues"
 [project.scripts]
 obsidian-mcp-guard = "obsidian_mcp_guard.__main__:main"
 
-[tool.hatch.metadata]
-allow-direct-references = true
