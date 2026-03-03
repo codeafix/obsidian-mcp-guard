@@ -28,4 +28,4 @@ jobs:
         run: pip install pytest pytest-cov
 
       - name: Run tests
-        run: pytest tests/ --cov=obsidian_mcp_guard --cov-report=term-missing
+        run: pytest tests/ --cov=obsidian_mcp_guard --cov-report=term-missing --cov-fail-under=90
