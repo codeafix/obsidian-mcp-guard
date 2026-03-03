@@ -1,5 +1,10 @@
 # obsidian-mcp-guard
 
+[![PyPI version](https://badge.fury.io/py/obsidian-mcp-guard.svg)](https://pypi.org/project/obsidian-mcp-guard/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://github.com/codeafix/obsidian-mcp-guard/actions/workflows/test.yml/badge.svg)](https://github.com/codeafix/obsidian-mcp-guard/actions)
+
 An MCP server for agent-safe Obsidian vault access. Provides read/write file tools with lint validation to prevent agents from writing malformed Obsidian markdown.
 
 ## Why this exists
