@@ -13,7 +13,7 @@ Most Obsidian MCP servers give agents direct write access with no markdown valid
 
 ## Features
 
-- **Read/list/create/update/delete** notes via `HOST_VAULT_PATH` on the host filesystem
+- **Read/list/create/update/delete/move** notes via `HOST_VAULT_PATH` on the host filesystem
 - **Lint validation** on all writes using [mdlint-obsidian](https://github.com/codeafix/mdlint-obsidian) — blocks writes that violate Obsidian markdown rules (unclosed wikilinks, raw HTML, standard-markdown links, etc.)
 - **Write-vault isolation** — writes are constrained to a single configurable vault; directory-traversal attacks are blocked on both read and write paths
 - **Composable** — `create_vault_server()` returns a `FastMCP` instance that can be mounted into a larger server via `import_server()`
@@ -127,14 +127,16 @@ def search_notes(...):
 | `create_note(source, content, overwrite?)` | Create a note; blocked by lint errors |
 | `update_note(source, content, mode?)` | Overwrite or append to a note; blocked by lint errors |
 | `delete_note(source)` | Move a note to `.trash/` (recoverable) |
+| `move_note(source_path, dest_path, create_dirs?)` | Move a note within the write vault; rewrites wikilinks in all vault files |
 | `lint_note(content)` | Pre-validate content without writing; returns `{valid, errors, warnings}` |
 
 ## Development
 
 ```bash
-pip install -e .
-pip install pytest pytest-cov
-pytest tests/ --cov=obsidian_mcp_guard
+make install   # install package + test dependencies
+make test      # run tests with coverage (90% minimum)
+make build     # build source and wheel distributions
+make clean     # remove build artefacts and cache files
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.

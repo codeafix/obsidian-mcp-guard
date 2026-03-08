@@ -21,11 +21,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install package
-        run: pip install -e .
-
-      - name: Install test dependencies
-        run: pip install pytest pytest-cov
+      - name: Install dependencies
+        run: make install
 
       - name: Run tests
-        run: pytest tests/ --cov=obsidian_mcp_guard --cov-report=term-missing --cov-fail-under=90
+        run: make test

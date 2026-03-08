@@ -23,3 +23,9 @@ htmlcov/
 
 # Environment
 .env
+
+# Claude
+.claude/
+
+# Cursor
+.cursor/

@@ -5,20 +5,18 @@
 ```bash
 git clone https://github.com/codeafix/obsidian-mcp-guard.git
 cd obsidian-mcp-guard
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
-pip install pytest pytest-cov
+make install
 ```
 
 ## Running the tests
 
 ```bash
-pytest tests/
-pytest tests/ --cov=obsidian_mcp_guard --cov-report=term-missing
+make test
 ```
 
-All tests must pass before submitting a PR. Coverage should not regress.
+All tests must pass before submitting a PR. Coverage must not drop below 90%.
 
 ## Adding a feature or fixing a bug
 

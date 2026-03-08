@@ -10,6 +10,7 @@ from obsidian_mcp_guard.paths import resolve_safe, check_write_vault, resolve_wr
 from obsidian_mcp_guard.lint import linter_available, run_lint
 from obsidian_mcp_guard.server import (
     _read_note, _list_notes, _create_note, _update_note, _delete_note, _lint_note,
+    _move_note, _rewrite_wikilinks,
     create_vault_server,
 )
 
@@ -577,3 +578,134 @@ def test_create_vault_server_env_defaults(vault_root, monkeypatch):
     monkeypatch.setenv("WRITE_VAULT", "Claude")
     server = create_vault_server()
     assert isinstance(server, FastMCP)
+
+
+# ── _move_note ────────────────────────────────────────────────────────────────
+
+def test_move_note_happy_path(vault_root):
+    """Successfully moves a note and returns the expected dict."""
+    (vault_root / "Claude" / "old.md").write_text("content")
+    result = _move_note(vault_root, "Claude", "Claude/old.md", "Claude/new.md")
+    assert result["success"] is True
+    assert result["source"] == "Claude/old.md"
+    assert result["destination"] == "Claude/new.md"
+    assert isinstance(result["links_updated"], int)
+    assert not (vault_root / "Claude" / "old.md").exists()
+    assert (vault_root / "Claude" / "new.md").read_text() == "content"
+
+
+def test_move_note_creates_parent_dirs(vault_root):
+    """create_dirs=True (default) creates missing intermediate directories."""
+    (vault_root / "Claude" / "note.md").write_text("x")
+    result = _move_note(vault_root, "Claude", "Claude/note.md", "Claude/sub/dir/note.md")
+    assert result["success"] is True
+    assert (vault_root / "Claude" / "sub" / "dir" / "note.md").exists()
+
+
+def test_move_note_source_traversal_rejected(vault_root):
+    """.. traversal in source is rejected; Claude/../etc stays in hvp so fires write_not_permitted."""
+    result = _move_note(vault_root, "Claude", "Claude/../etc/passwd", "Claude/dest.md")
+    assert result["error"] == "write_not_permitted"
+
+
+def test_move_note_dest_traversal_rejected(vault_root):
+    """.. traversal in dest is rejected; source file is left untouched."""
+    (vault_root / "Claude" / "note.md").write_text("x")
+    result = _move_note(vault_root, "Claude", "Claude/note.md", "Claude/../etc/evil.md")
+    assert result["error"] == "write_not_permitted"
+    assert (vault_root / "Claude" / "note.md").exists()  # source untouched
+
+
+def test_move_note_source_symlink_outside_vault_rejected(vault_root, tmp_path):
+    """A symlink inside the vault that resolves outside the write vault is rejected."""
+    outside = tmp_path / "secret.md"
+    outside.write_text("secret")
+    (vault_root / "Claude" / "link.md").symlink_to(outside)
+    result = _move_note(vault_root, "Claude", "Claude/link.md", "Claude/dest.md")
+    assert "error" in result
+    assert not (vault_root / "Claude" / "dest.md").exists()
+
+
+def test_move_note_dest_symlink_outside_vault_rejected(vault_root, tmp_path):
+    """A dest path that resolves outside the write vault via symlink is rejected."""
+    (vault_root / "Claude" / "source.md").write_text("content")
+    outside_dir = tmp_path / "outside_dir"
+    outside_dir.mkdir()
+    (vault_root / "Claude" / "linked_dir").symlink_to(outside_dir)
+    result = _move_note(vault_root, "Claude", "Claude/source.md", "Claude/linked_dir/dest.md")
+    assert "error" in result
+    assert (vault_root / "Claude" / "source.md").exists()  # source untouched
+
+
+def test_move_note_dest_already_exists_fails(vault_root):
+    """Moving to an already-existing destination is rejected; source is untouched."""
+    (vault_root / "Claude" / "source.md").write_text("source content")
+    (vault_root / "Claude" / "dest.md").write_text("dest content")
+    result = _move_note(vault_root, "Claude", "Claude/source.md", "Claude/dest.md")
+    assert result == {"error": "already_exists", "destination": "Claude/dest.md"}
+    assert (vault_root / "Claude" / "source.md").read_text() == "source content"
+    assert (vault_root / "Claude" / "dest.md").read_text() == "dest content"
+
+
+def test_move_note_source_not_found(vault_root):
+    result = _move_note(vault_root, "Claude", "Claude/missing.md", "Claude/dest.md")
+    assert result == {"error": "not_found", "source": "Claude/missing.md"}
+
+
+def test_move_note_wrong_vault_source(vault_root):
+    result = _move_note(vault_root, "Claude", "Other/note.md", "Claude/dest.md")
+    assert result["error"] == "write_not_permitted"
+
+
+def test_move_note_wrong_vault_dest(vault_root):
+    (vault_root / "Claude" / "note.md").write_text("x")
+    result = _move_note(vault_root, "Claude", "Claude/note.md", "Other/dest.md")
+    assert result["error"] == "write_not_permitted"
+    assert (vault_root / "Claude" / "note.md").exists()
+
+
+# ── _rewrite_wikilinks ────────────────────────────────────────────────────────
+
+def test_move_note_rewrites_plain_wikilinks(vault_root):
+    """[[old]] → [[new]] in files that reference the moved note."""
+    (vault_root / "Claude" / "old.md").write_text("content")
+    ref = vault_root / "Claude" / "ref.md"
+    ref.write_text("See [[old]] for details.")
+    result = _move_note(vault_root, "Claude", "Claude/old.md", "Claude/new.md")
+    assert result["links_updated"] == 1
+    assert ref.read_text() == "See [[new]] for details."
+
+
+def test_move_note_rewrites_aliased_wikilinks(vault_root):
+    """[[old|alias]] → [[new|alias]] after move."""
+    (vault_root / "Claude" / "old.md").write_text("content")
+    ref = vault_root / "Claude" / "ref.md"
+    ref.write_text("Read [[old|the old note]] here.")
+    _move_note(vault_root, "Claude", "Claude/old.md", "Claude/new.md")
+    assert ref.read_text() == "Read [[new|the old note]] here."
+
+
+def test_move_note_rewrites_transclusion_links(vault_root):
+    """![[old]] → ![[new]] after move."""
+    (vault_root / "Claude" / "old.md").write_text("content")
+    ref = vault_root / "Claude" / "ref.md"
+    ref.write_text("![[old]]")
+    _move_note(vault_root, "Claude", "Claude/old.md", "Claude/new.md")
+    assert ref.read_text() == "![[new]]"
+
+
+def test_move_note_no_links_updated_when_none_reference_old(vault_root):
+    """links_updated is 0 when no files reference the moved note."""
+    (vault_root / "Claude" / "old.md").write_text("content")
+    (vault_root / "Claude" / "unrelated.md").write_text("No links here.")
+    result = _move_note(vault_root, "Claude", "Claude/old.md", "Claude/new.md")
+    assert result["links_updated"] == 0
+
+
+def test_move_note_rewrites_links_across_multiple_files(vault_root):
+    """links_updated counts each file that was modified, not each link occurrence."""
+    (vault_root / "Claude" / "old.md").write_text("content")
+    (vault_root / "Claude" / "ref1.md").write_text("[[old]]")
+    (vault_root / "Claude" / "ref2.md").write_text("[[old]] and [[old|alias]]")
+    result = _move_note(vault_root, "Claude", "Claude/old.md", "Claude/new.md")
+    assert result["links_updated"] == 2

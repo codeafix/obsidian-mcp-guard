@@ -6,6 +6,7 @@ create_vault_server() returns a FastMCP instance ready to run or be imported.
 
 import os
 import pathlib
+import re
 import shutil
 
 from fastmcp import FastMCP
@@ -165,6 +166,80 @@ def _delete_note(hvp: pathlib.Path, wv: str, source: str) -> dict:
     }
 
 
+def _rewrite_wikilinks(hvp: pathlib.Path, old_stem: str, new_stem: str) -> int:
+    """
+    Scan all .md files under hvp for wikilinks referencing old_stem and
+    rewrite them to use new_stem.  Returns the count of files modified.
+    Handles [[stem]], [[stem|alias]], ![[stem]], and ![[stem|alias]] forms.
+    """
+    pattern = re.compile(
+        r"(!?\[\[)" + re.escape(old_stem) + r"(\|[^\]]*)?(\]\])"
+    )
+    replacement = r"\g<1>" + new_stem + r"\g<2>\g<3>"
+    count = 0
+    for md_file in hvp.rglob("*.md"):
+        if not md_file.is_file():
+            continue
+        try:
+            text = md_file.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        new_text = pattern.sub(replacement, text)
+        if new_text != text:
+            md_file.write_text(new_text, encoding="utf-8")
+            count += 1
+    return count
+
+
+def _move_note(
+    hvp: pathlib.Path, wv: str, source: str, dest: str, create_dirs: bool = True
+) -> dict:
+    """
+    Move a note from source to dest (both in vault/relative/path.md format).
+    Both paths must be within the write vault.
+    Fails if dest already exists — there is no overwrite option.
+    If create_dirs=True, creates missing parent directories at the destination.
+    After a successful move, rewrites wikilinks in all .md files that referenced
+    the old filename so they point to the new filename.
+    """
+    # Both paths must be within the write vault
+    err = check_write_vault(wv, source)
+    if err:
+        return err
+    err = check_write_vault(wv, dest)
+    if err:
+        return err
+
+    # Resolve both paths (handles symlinks) and confirm they stay within the write vault
+    source_path = resolve_write_safe(hvp, wv, source)
+    if isinstance(source_path, dict):
+        return source_path
+    dest_path = resolve_write_safe(hvp, wv, dest)
+    if isinstance(dest_path, dict):
+        return dest_path
+
+    if not source_path.exists():
+        return {"error": "not_found", "source": source}
+    if dest_path.exists():
+        return {"error": "already_exists", "destination": dest}
+
+    if create_dirs:
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    shutil.move(str(source_path), str(dest_path))
+
+    old_stem = source_path.stem
+    new_stem = dest_path.stem
+    links_updated = _rewrite_wikilinks(hvp, old_stem, new_stem)
+
+    return {
+        "success": True,
+        "source": source,
+        "destination": dest,
+        "links_updated": links_updated,
+    }
+
+
 def _lint_note(vault_path_str: "str | None", content: str) -> dict:
     """
     Pre-validate markdown content without writing it to disk.
@@ -242,6 +317,19 @@ def create_vault_server(vault_path: "str | None" = None, write_vault: "str | Non
         Refuses with a structured error if the target vault is not WRITE_VAULT.
         """
         return _delete_note(hvp, wv, source)
+
+    @mcp.tool()
+    def move_note(source_path: str, dest_path: str, create_dirs: bool = True) -> dict:
+        """
+        Move a note from source_path to dest_path (vault/relative/path.md format).
+        Both paths must be within WRITE_VAULT.
+        Fails if dest_path already exists — there is no overwrite option.
+        If create_dirs=True (default), creates missing parent directories.
+        After a successful move, wikilinks in all vault .md files that referenced
+        the old filename are rewritten to use the new filename.
+        Returns {"success": bool, "source": str, "destination": str, "links_updated": int}.
+        """
+        return _move_note(hvp, wv, source_path, dest_path, create_dirs)
 
     @mcp.tool()
     def lint_note(content: str) -> dict:
